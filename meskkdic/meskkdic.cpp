@@ -1,7 +1,7 @@
 ﻿
 #include "stdafx.h"
 
-#define VERSION		L"1.0.0"
+#define VERSION		L"1.1.0"
 
 #ifdef _UNICODE
 #define BUFSIZE 0x8000
@@ -11,6 +11,7 @@ LPCWSTR EntriesAri = L";; okuri-ari entries.\n";
 LPCWSTR EntriesNasi = L";; okuri-nasi entries.\n";
 #define XSTRING std::wstring
 #define XREGEX std::wregex
+#define XSMATCH std::wsmatch
 #else
 #define BUFSIZE 0x10000
 LPCWSTR modeR = L"rb";
@@ -19,23 +20,26 @@ LPCSTR EntriesAri = ";; okuri-ari entries.\n";
 LPCSTR EntriesNasi = ";; okuri-nasi entries.\n";
 #define XSTRING std::string
 #define XREGEX std::regex
+#define XSMATCH std::smatch
 #endif
 
 CONST WCHAR plus = L'+';
 CONST WCHAR minus = L'-';
 
 //候補   pair< candidate, annotation >
-typedef std::pair< XSTRING, XSTRING > CANDIDATE;
-typedef std::vector< CANDIDATE > CANDIDATES;
+typedef std::pair< XSTRING, XSTRING > SKKDICCANDIDATE;
+typedef std::vector< SKKDICCANDIDATE > SKKDICCANDIDATES;
 //辞書   pair< key, candidates >
-typedef std::map< XSTRING, CANDIDATES > SKKDIC;
-typedef std::pair< XSTRING, CANDIDATES > SKKDICENTRY;
+typedef std::pair< XSTRING, SKKDICCANDIDATES > SKKDICENTRY;
+typedef std::map< XSTRING, SKKDICCANDIDATES > SKKDIC;
 
 BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries_n);
 void AddDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const XSTRING &annotation);
 void DelDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const XSTRING &annotation);
 BOOL SaveSKKDic(LPCWSTR path, const SKKDIC &entries_a, const SKKDIC &entries_n);
-void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const CANDIDATES &candidates);
+void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &candidates);
+XSTRING ParseConcat(const XSTRING &s);
+XSTRING MakeConcat(const XSTRING &s);
 
 int wmain(int argc, wchar_t* argv[])
 {
@@ -204,45 +208,48 @@ void AddDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const 
 {
 	SKKDIC::iterator skkdic_itr;
 	SKKDICENTRY skkdicentry;
-	CANDIDATES::iterator candidates_itr;
+	SKKDICCANDIDATES::iterator sc_itr;
 	LPCTSTR seps = _T(",");
 	XSTRING annotation_seps;
+	XSTRING annotation_esc;
 
 	if(!annotation.empty())
 	{
-		annotation_seps = seps + annotation + seps;
+		annotation_seps = seps + ParseConcat(annotation) + seps;
 	}
 
 	skkdic_itr = skkdic.find(key);
 	if(skkdic_itr == skkdic.end())
 	{
 		skkdicentry.first = key;
-		skkdicentry.second.push_back(CANDIDATE(candidate, annotation_seps));
+		skkdicentry.second.push_back(SKKDICCANDIDATE(candidate, annotation_seps));
 		skkdic.insert(skkdicentry);
 	}
 	else
 	{
-		for(candidates_itr = skkdic_itr->second.begin(); candidates_itr != skkdic_itr->second.end(); candidates_itr++)
+		for(sc_itr = skkdic_itr->second.begin(); sc_itr != skkdic_itr->second.end(); sc_itr++)
 		{
-			if(candidates_itr->first == candidate)
+			if(sc_itr->first == candidate)
 			{
-				if(candidates_itr->second.find(annotation_seps) == std::wstring::npos)
+				annotation_esc = ParseConcat(sc_itr->second);
+				if(annotation_esc.find(annotation_seps) == std::wstring::npos)
 				{
-					if(candidates_itr->second.empty())
+					if(annotation_esc.empty())
 					{
-						candidates_itr->second.append(annotation_seps);
+						sc_itr->second.assign(MakeConcat(annotation_seps));
 					}
 					else
 					{
-						candidates_itr->second.append(annotation + seps);
+						annotation_esc.append(ParseConcat(annotation) + seps);
+						sc_itr->second.assign(MakeConcat(annotation_esc));
 					}
 				}
 				break;
 			}
 		}
-		if(candidates_itr == skkdic_itr->second.end())
+		if(sc_itr == skkdic_itr->second.end())
 		{
-			skkdic_itr->second.push_back(CANDIDATE(candidate, annotation_seps));
+			skkdic_itr->second.push_back(SKKDICCANDIDATE(candidate, MakeConcat(annotation_seps)));
 		}
 	}
 }
@@ -250,16 +257,16 @@ void AddDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const 
 void DelDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const XSTRING &annotation)
 {
 	SKKDIC::iterator skkdic_itr;
-	CANDIDATES::iterator candidates_itr;
+	SKKDICCANDIDATES::iterator sc_itr;
 
 	skkdic_itr = skkdic.find(key);
 	if(skkdic_itr != skkdic.end())
 	{
-		for(candidates_itr = skkdic_itr->second.begin(); candidates_itr != skkdic_itr->second.end(); candidates_itr++)
+		for(sc_itr = skkdic_itr->second.begin(); sc_itr != skkdic_itr->second.end(); sc_itr++)
 		{
-			if(candidates_itr->first == candidate)
+			if(sc_itr->first == candidate)
 			{
-				skkdic_itr->second.erase(candidates_itr);
+				skkdic_itr->second.erase(sc_itr);
 				if(skkdic_itr->second.empty())
 				{
 					skkdic.erase(skkdic_itr);
@@ -303,21 +310,92 @@ BOOL SaveSKKDic(LPCWSTR path, const SKKDIC &entries_a, const SKKDIC &entries_n)
 	return TRUE;
 }
 
-void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const CANDIDATES &candidates)
+void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &candidates)
 {
+	SKKDICCANDIDATES::const_iterator sc_itr;
 	XSTRING line;
-	CANDIDATES::const_iterator candidates_itr;
+	XSTRING annotation_esc;
 
 	line = key + _T(" /");
-	for(candidates_itr = candidates.begin(); candidates_itr != candidates.end(); candidates_itr++)
+	for(sc_itr = candidates.begin(); sc_itr != candidates.end(); sc_itr++)
 	{
-		line += candidates_itr->first;
-		if(candidates_itr->second.size() > 2)
+		line += sc_itr->first;
+		if(sc_itr->second.size() > 2)
 		{
-			line += _T(";") + candidates_itr->second.substr(1, candidates_itr->second.size() - 2);
+			annotation_esc = ParseConcat(sc_itr->second);
+			line += _T(";") + MakeConcat(annotation_esc.substr(1, annotation_esc.size() - 2));
 		}
 		line += _T("/");
 	}
 
 	_ftprintf(fp, _T("%s\n"), line.c_str());
+}
+
+XSTRING ParseConcat(const XSTRING &s)
+{
+	XSTRING ret = s;
+	XREGEX re;
+	XSMATCH res;
+	XSTRING numstr, tmpstr, fmt;
+	TCHAR u;
+
+	tmpstr = s;
+	re.assign(_T("^\\(concat \".+?\"\\)$"));
+	if(std::regex_search(tmpstr, re))
+	{
+		ret.clear();
+		fmt = _T("$1");
+
+		re.assign(_T("\\(concat \"(.+)\"\\)"));
+		tmpstr = std::regex_replace(tmpstr, re, fmt);
+
+		re.assign(_T("\\\\([\\\"|\\\\])"));
+		tmpstr = std::regex_replace(tmpstr, re, fmt);
+
+		re.assign(_T("\\\\[0-3][0-7]{2}"));
+		while(std::regex_search(tmpstr, res, re))
+		{
+			ret += res.prefix();
+			numstr = res.str();
+			numstr[0] = _T('0');
+			u = (TCHAR)_tcstoul(numstr.c_str(), NULL, 0);
+			if(u >= _T('\x20') && u <= _T('\x7E'))
+			{
+				ret.append(1, u);
+			}
+			tmpstr = res.suffix();
+		}
+		ret += tmpstr;
+	}
+
+	return ret;
+}
+
+XSTRING MakeConcat(const XSTRING &s)
+{
+	XSTRING ret = s;
+	XREGEX re;
+	XSTRING fmt;
+
+	// "/" -> \057, ";" -> \073
+	re.assign(_T("[/;]"));
+	if(std::regex_search(ret, re))
+	{
+		// "\"" -> "\\\"", "\\" -> "\\\\"
+		re.assign(_T("([\\\"|\\\\])"));
+		fmt.assign(_T("\\$1"));
+		ret = std::regex_replace(ret, re, fmt);
+
+		re.assign(_T("/"));
+		fmt.assign(_T("\\057"));
+		ret = std::regex_replace(ret, re, fmt);
+
+		re.assign(_T(";"));
+		fmt.assign(_T("\\073"));
+		ret = std::regex_replace(ret, re, fmt);
+
+		ret = _T("(concat \"") + ret + _T("\")");
+	}
+
+	return ret;
 }
