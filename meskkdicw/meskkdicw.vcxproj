@@ -20,6 +20,9 @@
   <ItemGroup>
     <ClInclude Include="..\meskkdic\stdafx.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\README.TXT" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{0B3DD3DB-102A-476D-A63C-862AD1980CCD}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
@@ -62,6 +65,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <ForcedIncludeFiles>stdafx.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -77,6 +81,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <ForcedIncludeFiles>stdafx.h</ForcedIncludeFiles>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>

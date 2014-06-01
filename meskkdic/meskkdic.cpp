@@ -1,7 +1,5 @@
 ﻿
-#include "stdafx.h"
-
-#define VERSION		L"1.1.0"
+#define VERSION		L"1.2.0"
 
 #ifdef _UNICODE
 #define BUFSIZE 0x8000
