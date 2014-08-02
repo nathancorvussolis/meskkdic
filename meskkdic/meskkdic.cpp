@@ -1,17 +1,17 @@
 ﻿
-#define VERSION		L"1.2.0"
+#define VERSION		L"2.0.0"
 
 #ifdef _UNICODE
-#define BUFSIZE 0x8000
-LPCWSTR modeR = L"r,ccs=UNICODE";
-LPCWSTR modeW = L"w,ccs=UNICODE";
+#define BUFSIZE 0x800
+LPCWSTR modeR = L"r,ccs=UTF-16LE";
+LPCWSTR modeW = L"w,ccs=UTF-16LE";
 LPCWSTR EntriesAri = L";; okuri-ari entries.\n";
 LPCWSTR EntriesNasi = L";; okuri-nasi entries.\n";
 #define XSTRING std::wstring
 #define XREGEX std::wregex
 #define XSMATCH std::wsmatch
 #else
-#define BUFSIZE 0x10000
+#define BUFSIZE 0x1000
 LPCWSTR modeR = L"rb";
 LPCWSTR modeW = L"wb";
 LPCSTR EntriesAri = ";; okuri-ari entries.\n";
@@ -49,20 +49,20 @@ int wmain(int argc, wchar_t* argv[])
 
 	if(argc < 3)
 	{
-		fwprintf(stderr, L"\nmeskkdic (%s)\n\n", VERSION);
+		fwprintf(stderr, L"\nmeskkdic %s\n\n", VERSION);
 		fwprintf(stderr, L"usage : meskkdic <input file 1> [[+-] <input file 2> ...] <output file>\n");
 		return -1;
 	}
 
-	for(i=1; i<argc-1; i+=2)
+	for(i = 1; i < argc - 1; i += 2)
 	{
-		if(i==1)
+		if(i == 1)
 		{
 			op = plus;
 		}
 		else
 		{
-			if(wcslen(argv[i-1]) != 1 && argv[i-1][0] != plus && argv[i-1][0] != minus)
+			if((wcslen(argv[i-1]) != 1) && (argv[i-1][0] != plus) && (argv[i-1][0] != minus))
 			{
 				fwprintf(stderr, L"found irregal string : %s\n");
 				return -1;
@@ -89,14 +89,11 @@ BOOL LoadSKKDic(const WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries
 	size_t i, is, ie;
 	FILE *fp;
 	TCHAR buf[BUFSIZE];
-	XSTRING s;
+	LPTSTR pb;
+	XSTRING s, key, candidate, c, a, fmt;
 	XREGEX re;
-	XSTRING fmt;
 	std::vector<XSTRING> es;
 	int okuri = -1;
-	XSTRING key;
-	XSTRING candidate;
-	XSTRING c, a;
 
 	_wfopen_s(&fp, path, modeR);
 	if(fp == NULL)
@@ -107,17 +104,29 @@ BOOL LoadSKKDic(const WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries
 
 	while(true)
 	{
-		if(_fgetts(buf, _countof(buf), fp) == NULL)
+		s.clear();
+
+		while((pb = _fgetts(buf, _countof(buf), fp)) != NULL)
+		{
+			s.append(buf);
+
+			if(!s.empty() && s.back() == _T('\n'))
+			{
+				break;
+			}
+		}
+
+		if(pb == NULL)
 		{
 			break;
 		}
 
-		if(_tcscmp(EntriesAri, buf) == 0)
+		if(s.compare(EntriesAri) == 0)
 		{
 			okuri = 1;
 			continue;
 		}
-		else if(_tcscmp(EntriesNasi, buf) == 0)
+		else if(s.compare(EntriesNasi) == 0)
 		{
 			okuri = 0;
 			continue;
@@ -127,7 +136,6 @@ BOOL LoadSKKDic(const WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries
 			continue;
 		}
 
-		s.assign(buf);
 		re.assign(_T("[\\x00-\\x19]"));
 		fmt.assign(_T(""));
 		s = std::regex_replace(s, re, fmt);
@@ -167,7 +175,7 @@ BOOL LoadSKKDic(const WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries
 		}
 
 		//候補と注釈を分割
-		for(i=0; i<es.size(); i++)
+		for(i = 0; i < es.size(); i++)
 		{
 			s = es[i];
 			ie = s.find_first_of(_T(';'));
@@ -204,28 +212,26 @@ BOOL LoadSKKDic(const WCHAR op, LPCWSTR path, SKKDIC &entries_a, SKKDIC &entries
 
 void AddDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const XSTRING &annotation)
 {
-	SKKDIC::iterator skkdic_itr;
-	SKKDICENTRY skkdicentry;
-	SKKDICCANDIDATES::iterator sc_itr;
 	LPCTSTR seps = _T(",");
-	XSTRING annotation_seps;
-	XSTRING annotation_esc;
+	XSTRING annotation_seps, annotation_esc;
 
 	if(!annotation.empty())
 	{
 		annotation_seps = seps + ParseConcat(annotation) + seps;
 	}
 
-	skkdic_itr = skkdic.find(key);
+	auto skkdic_itr = skkdic.find(key);
 	if(skkdic_itr == skkdic.end())
 	{
+		SKKDICENTRY skkdicentry;
 		skkdicentry.first = key;
 		skkdicentry.second.push_back(SKKDICCANDIDATE(candidate, annotation_seps));
 		skkdic.insert(skkdicentry);
 	}
 	else
 	{
-		for(sc_itr = skkdic_itr->second.begin(); sc_itr != skkdic_itr->second.end(); sc_itr++)
+		auto sc_itr = skkdic_itr->second.begin();
+		for( ; sc_itr != skkdic_itr->second.end(); ++sc_itr)
 		{
 			if(sc_itr->first == candidate)
 			{
@@ -254,13 +260,10 @@ void AddDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const 
 
 void DelDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const XSTRING &annotation)
 {
-	SKKDIC::iterator skkdic_itr;
-	SKKDICCANDIDATES::iterator sc_itr;
-
-	skkdic_itr = skkdic.find(key);
+	auto skkdic_itr = skkdic.find(key);
 	if(skkdic_itr != skkdic.end())
 	{
-		for(sc_itr = skkdic_itr->second.begin(); sc_itr != skkdic_itr->second.end(); sc_itr++)
+		for(auto sc_itr = skkdic_itr->second.begin(); sc_itr != skkdic_itr->second.end(); ++sc_itr)
 		{
 			if(sc_itr->first == candidate)
 			{
@@ -278,8 +281,6 @@ void DelDic(SKKDIC &skkdic, const XSTRING &key, const XSTRING &candidate, const 
 BOOL SaveSKKDic(LPCWSTR path, const SKKDIC &entries_a, const SKKDIC &entries_n)
 {
 	FILE *fp;
-	SKKDIC::const_iterator entries_itr;
-	SKKDIC::const_reverse_iterator entries_ritr;
 	XSTRING line;
 
 	_wfopen_s(&fp, path, modeW);
@@ -291,14 +292,14 @@ BOOL SaveSKKDic(LPCWSTR path, const SKKDIC &entries_a, const SKKDIC &entries_n)
 
 	_ftprintf(fp, _T("%s"), EntriesAri);
 
-	for(entries_ritr = entries_a.rbegin(); entries_ritr != entries_a.rend(); entries_ritr++)
+	for(auto entries_ritr = entries_a.rbegin(); entries_ritr != entries_a.rend(); ++entries_ritr)
 	{
 		WriteSKKDicEntry(fp, entries_ritr->first, entries_ritr->second);
 	}
 
 	_ftprintf(fp, _T("%s"), EntriesNasi);
 
-	for(entries_itr = entries_n.begin(); entries_itr != entries_n.end(); entries_itr++)
+	for(auto entries_itr = entries_n.begin(); entries_itr != entries_n.end(); ++entries_itr)
 	{
 		WriteSKKDicEntry(fp, entries_itr->first, entries_itr->second);
 	}
@@ -310,12 +311,10 @@ BOOL SaveSKKDic(LPCWSTR path, const SKKDIC &entries_a, const SKKDIC &entries_n)
 
 void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &candidates)
 {
-	SKKDICCANDIDATES::const_iterator sc_itr;
-	XSTRING line;
-	XSTRING annotation_esc;
+	XSTRING line, annotation_esc;
 
 	line = key + _T(" /");
-	for(sc_itr = candidates.begin(); sc_itr != candidates.end(); sc_itr++)
+	for(auto sc_itr = candidates.begin(); sc_itr != candidates.end(); ++sc_itr)
 	{
 		line += sc_itr->first;
 		if(sc_itr->second.size() > 2)
@@ -331,12 +330,12 @@ void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &cand
 
 XSTRING ParseConcat(const XSTRING &s)
 {
-	XSTRING ret = s;
+	XSTRING ret, numstr, tmpstr, fmt;
 	XREGEX re;
 	XSMATCH res;
-	XSTRING numstr, tmpstr, fmt;
 	TCHAR u;
 
+	ret = s;
 	tmpstr = s;
 	re.assign(_T("^\\(concat \".+?\"\\)$"));
 	if(std::regex_search(tmpstr, re))
@@ -371,11 +370,12 @@ XSTRING ParseConcat(const XSTRING &s)
 
 XSTRING MakeConcat(const XSTRING &s)
 {
-	XSTRING ret = s;
+	XSTRING ret;
 	XREGEX re;
 	XSTRING fmt;
 
 	// "/" -> \057, ";" -> \073
+	ret = s;
 	re.assign(_T("[/;]"));
 	if(std::regex_search(ret, re))
 	{
