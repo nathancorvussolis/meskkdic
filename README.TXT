@@ -1,39 +1,65 @@
 ﻿
 -------------------------------------------------------------------------------
 
-   meskkdic 2.0.0
+   meskkdic 2.1.0
 
 -------------------------------------------------------------------------------
 
 SKK辞書をマージしたり差分を取るコマンドラインプログラムです。
-skkdic-expr2から共通集合の機能を省いた作りとなっています。
 
 meskkdic.exe
 
-   EUC-JIS-2004(改行LF)やUTF-8(BOMなし、改行LF)なSKK辞書をマージしたり差分を取る
-   コマンドラインプログラムです。
-   実行の際は、ファイルの文字コードを揃えて下さい。
+   EUC-JPやEUC-JIS-2004やUTF-8なSKK辞書をマージしたり差分を取るコマンドライン
+   プログラムです。実行の際は入力ファイルの文字コードを揃えて下さい。
+   入力ファイル
+      文字コード : EUC-JP, EUC-JIS-2004, UTF-8(BOMあり/なし)、など
+      改行コード : LFまたはCR+LF
+   出力ファイル
+      文字コード : 入力ファイルと同じ、UTF-8のときはBOMなし
+      改行コード : LF
 
 meskkdicw.exe
 
-   UTF-16(LE、BOMあり、改行CR+LF)なSKK辞書をマージしたり差分を取る
-   コマンドラインプログラムです。
+   UTF-16(LE)なSKK辞書をマージしたり差分を取るコマンドラインプログラムです。
+   入力ファイル
+      文字コード : UTF-16(LE、BOMあり/なし)
+      改行コード : LFまたはCR+LF
+   出力ファイル
+      文字コード : UTF-16(LE、BOMあり)
+      改行コード : CR+LF
 
 実行方法
 
-   meskkdic.exe <input file 1> [[+-] <input file 2> ...] <output file>
+   meskkdic.exe [-O] <input file 1> [[+-] <input file 2> ...] <output file>
+
+   オプション "-O" があるとき、
+     * 出力ファイルはSKK辞書形式にソートされません。
+     * 送りありエントリの角括弧のブロックは保持されます。
+
+   オプション "-O" がないとき、
+     * 出力ファイルはSKK辞書形式にソートされます。
+     * 送りありエントリの角括弧のブロックは無視されます。
 
 使用例
 
- 1) マージして結果を出力
+ 1) マージして結果を出力 (見出し語のソートあり、送り仮名ブロックを無視)
+
    muskkdic.exe SKK-JISYO.L + SKK-JISYO.JIS3_4 + SKK-JISYO.JIS2004 myskkdic.txt
 
- 2) 差分を取って結果を出力
+ 2) マージして結果を出力 (見出し語のソートなし、送り仮名ブロックを保持)
+
+   muskkdic.exe -O jisyo.txt + jisyo2.txt + jisyo3.txt myskkdic.txt
+
+ 3) 差分を取って結果を出力 (見出し語のソートあり、送り仮名ブロックを無視)
+
    muskkdic.exe myskkdic_old.txt - wrong.txt myskkdic_new.txt
 
-出力ファイルはSKK辞書形式にソートされます。
+ 4) 差分を取って結果を出力 (見出し語のソートなし、送り仮名ブロックを保持)
+
+   muskkdic.exe -O myskkdic_old.txt - wrong.txt myskkdic_new.txt
+
+
 マージのとき同じ候補に異なる注釈があった場合は注釈をカンマで区切って連結します。
-送りありエントリの角括弧のブロックは無視されます。
 
 
 
@@ -47,7 +73,7 @@ meskkdic
 
 The MIT License
 
-Copyright (c) 2012-2014 SASAKI Nobuyuki
+Copyright (c) 2012-2015 SASAKI Nobuyuki
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
