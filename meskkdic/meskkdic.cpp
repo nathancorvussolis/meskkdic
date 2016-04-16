@@ -1,5 +1,5 @@
 ﻿
-#define VERSION		L"2.1.0"
+#define VERSION		L"2.2.0"
 
 #ifdef _UNICODE
 #define BUFSIZE 0x800
@@ -420,7 +420,7 @@ BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path)
 	SKKDICOKURIBLOCKS so;
 
 	_wfopen_s(&fp, path, modeR);
-	if(fp == NULL)
+	if(fp == nullptr)
 	{
 		fwprintf(stderr, L"cannot open file : %s\n", path);
 		return FALSE;
@@ -523,7 +523,7 @@ BOOL SaveSKKDic(LPCWSTR path)
 	SKKDICOKURIBLOCKS so;
 
 	_wfopen_s(&fp, path, modeW);
-	if(fp == NULL)
+	if(fp == nullptr)
 	{
 		fwprintf(stderr, L"cannot open file : %s\n", path);
 		return FALSE;
@@ -601,7 +601,7 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 	c.clear();
 	o.clear();
 
-	while((rp = _fgetts(buf, _countof(buf), fp)) != NULL)
+	while((rp = _fgetts(buf, _countof(buf), fp)) != nullptr)
 	{
 		sbuf += buf;
 
@@ -614,7 +614,7 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		}
 	}
 
-	if(rp == NULL)
+	if(rp == nullptr)
 	{
 		return -1;
 	}
@@ -775,7 +775,7 @@ XSTRING ParseConcat(const XSTRING &s)
 			ret += res.prefix();
 			numstr = res.str();
 			numstr[0] = _T('0');
-			u = _tcstoul(numstr.c_str(), NULL, 0);
+			u = _tcstoul(numstr.c_str(), nullptr, 0);
 			if(u >= _T('\x20') && u <= _T('\x7E'))
 			{
 				ret.append(1, (TCHAR)u);

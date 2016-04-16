@@ -1,7 +1,7 @@
 ﻿
 -------------------------------------------------------------------------------
 
-   meskkdic 2.1.0
+   meskkdic 2.2.0
 
 -------------------------------------------------------------------------------
 
@@ -73,7 +73,7 @@ meskkdic
 
 The MIT License
 
-Copyright (c) 2012-2015 SASAKI Nobuyuki
+Copyright (c) 2012-2016 SASAKI Nobuyuki
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the "Software"),
