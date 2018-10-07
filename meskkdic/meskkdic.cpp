@@ -1,5 +1,14 @@
 ﻿
-#define VERSION		L"2.2.0"
+#include <tchar.h>
+
+#include <string>
+#include <vector>
+#include <map>
+#include <regex>
+
+#include <Windows.h>
+
+#define VERSION		L"2.3.0"
 
 #ifdef _UNICODE
 #define BUFSIZE 0x800
@@ -593,10 +602,9 @@ BOOL SaveSKKDic(LPCWSTR path)
 int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o)
 {
 	TCHAR buf[BUFSIZE];
-	size_t is;
+	size_t is, ie;
 	void *rp;
 	XSTRING sbuf, s, fmt;
-	XREGEX re;
 
 	c.clear();
 	o.clear();
@@ -607,9 +615,11 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 
 		if(!sbuf.empty() && sbuf.back() == _T('\n'))
 		{
-			re.assign(_T("\\r\\n"));
-			fmt.assign(_T("\n"));
-			sbuf = std::regex_replace(sbuf, re, fmt);
+			is = sbuf.find(_T("\r\n"));
+			if(is != std::wstring::npos)
+			{
+				sbuf = sbuf.substr(0, is) + _T("\n");
+			}
 			break;
 		}
 	}
@@ -634,13 +644,6 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		okuri = 0;
 		return 1;
 	}
-	else
-	{
-		if(_T('\0') <= sbuf.front() && sbuf.front() <= _T('\x20'))
-		{
-			return 1;
-		}
-	}
 
 	if(okuri == -1)
 	{
@@ -648,9 +651,10 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 	}
 
 	s = sbuf;
-	re.assign(_T("[\\x00-\\x19]"));
+
+	static const XREGEX rectrl(_T("[\\x00-\\x19]"));
 	fmt.assign(_T(""));
-	s = std::regex_replace(s, re, fmt);
+	s = std::regex_replace(s, rectrl, fmt);
 
 	if(okuri == 1)
 	{
@@ -660,24 +664,31 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		}
 
 		//送りブロックを除去
-		re.assign(_T("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/"));
+		static const XREGEX reblock(_T("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/"));
 		fmt.assign(_T(""));
-		s = std::regex_replace(s, re, fmt);
+		s = std::regex_replace(s, reblock, fmt);
 	}
 
-	is = s.find_first_of(_T('\x20'));
-	if(is == XSTRING::npos)
+	is = s.find(_T("\x20/"));
+	if(is == std::wstring::npos)
 	{
 		return 1;
 	}
-	key = s.substr(0, is);
 
-	is = s.find_first_of(_T('/'), is);
-	if(is == XSTRING::npos)
+	ie = s.find_last_not_of(_T('\x20'), is);
+	if(ie == std::wstring::npos)
 	{
 		return 1;
 	}
-	s = s.substr(is);
+
+	if(s.find_last_of(_T('\x20'), ie) != std::wstring::npos)
+	{
+		return 1;
+	}
+
+	key = s.substr(0, ie + 1);
+
+	s = s.substr(is + 1);
 
 	ParseSKKDicCandiate(s, c);
 
@@ -723,66 +734,102 @@ void ParseSKKDicCandiate(const XSTRING &s, SKKDICCANDIDATES &c)
 
 void ParseSKKDicOkuriBlock(const XSTRING &s, SKKDICOKURIBLOCKS &o)
 {
-	XSTRING so, okurik, okuric;
-	XREGEX re, reb;
+	XSTRING so, okurik, okuric, fmt;
 	XSMATCH m;
 	SKKDICCANDIDATES okurics;
 
-	re.assign(_T("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/"));
-	reb.assign(_T("\\[([^\\[\\]]+?)(/[^\\[\\]]+?/)\\]/"));
 	so = s;
 
-	while(std::regex_search(so, m, re))
+	static const XREGEX reblock(_T("\\[([^\\[\\]]+?)(/[^\\[\\]]+?/)\\]/"));
+
+	while(std::regex_search(so, m, reblock))
 	{
 		okurics.clear();
 
-		okurik = std::regex_replace(m.str(), reb, XSTRING(_T("$1")));
-		okuric = std::regex_replace(m.str(), reb, XSTRING(_T("$2")));
+		fmt.assign(_T("$1"));
+		okurik = std::regex_replace(m.str(), reblock, fmt);
+		fmt.assign(_T("$2"));
+		okuric = std::regex_replace(m.str(), reblock, fmt);
 
 		ParseSKKDicCandiate(okuric, okurics);
 
-		o.push_back(SKKDICOKURIBLOCK(okurik, okurics));
+		std::reverse(okurics.begin(), okurics.end());
 
-		so = m.suffix();
+		o.insert(o.begin(), std::make_pair(okurik, okurics));
+
+		so = m.suffix().str();
 	}
 }
 
 XSTRING ParseConcat(const XSTRING &s)
 {
-	XSTRING ret, numstr, tmpstr, fmt;
+	XSTRING ret, fmt, numstr, numtmpstr;
 	XREGEX re;
 	XSMATCH res;
 	ULONG u;
-
+#ifdef _UNICODE
+	LPCTSTR bsrep = _T("\uf05c");
+#else
+	LPCTSTR bsrep = _T("\xff");
+#endif
 	ret = s;
 
-	tmpstr = s;
-	re.assign(_T("^\\(concat \".+?\"\\)$"));
-	if(std::regex_search(tmpstr, re))
+	static const XREGEX reconcat(_T("^\\(\\s*concat\\s+\"(.+)\"\\s*\\)$"));
+
+	if(std::regex_search(ret, reconcat))
 	{
-		ret.clear();
-		fmt = _T("$1");
+		fmt.assign(_T("$1"));
+		ret = std::regex_replace(ret, reconcat, fmt);
 
-		re.assign(_T("\\(concat \"(.+)\"\\)"));
-		tmpstr = std::regex_replace(tmpstr, re, fmt);
+		re.assign(_T("\"\\s+\""));
+		fmt.assign(_T(""));
+		ret = std::regex_replace(ret, re, fmt);
 
-		re.assign(_T("\\\\([\\\"\\\\])"));
-		tmpstr = std::regex_replace(tmpstr, re, fmt);
+		//バックスラッシュ
+		re.assign(_T("\\\\\\\\"));
+		fmt.assign(bsrep);
+		ret = std::regex_replace(ret, re, fmt);
 
+		//二重引用符
+		re.assign(_T("\\\\\\\""));
+		fmt.assign(_T("\\\""));
+		ret = std::regex_replace(ret, re, fmt);
+
+		//空白文字
+		re.assign(_T("\\\\s"));
+		fmt.assign(_T("\x20"));
+		ret = std::regex_replace(ret, re, fmt);
+
+		//制御文字など
+		re.assign(_T("\\\\[abtnvfred ]"));
+		fmt.assign(_T(""));
+		ret = std::regex_replace(ret, re, fmt);
+
+		//8進数表記の文字
 		re.assign(_T("\\\\[0-3][0-7]{2}"));
-		while(std::regex_search(tmpstr, res, re))
+		while(std::regex_search(ret, res, re))
 		{
-			ret += res.prefix();
-			numstr = res.str();
-			numstr[0] = _T('0');
-			u = _tcstoul(numstr.c_str(), nullptr, 0);
+			numstr += res.prefix();
+			numtmpstr = res.str();
+			numtmpstr[0] = L'0';
+			u = _tcstoul(numtmpstr.c_str(), nullptr, 0);
 			if(u >= _T('\x20') && u <= _T('\x7E'))
 			{
-				ret.append(1, (TCHAR)u);
+				numstr.append(1, (TCHAR)u);
 			}
-			tmpstr = res.suffix();
+			ret = res.suffix().str();
 		}
-		ret += tmpstr;
+		ret = numstr + ret;
+
+		//意味なしエスケープ
+		re.assign(_T("\\\\"));
+		fmt.assign(_T(""));
+		ret = std::regex_replace(ret, re, fmt);
+
+		//バックスラッシュ
+		re.assign(bsrep);
+		fmt.assign(_T("\\"));
+		ret = std::regex_replace(ret, re, fmt);
 	}
 
 	return ret;
@@ -796,8 +843,9 @@ XSTRING MakeConcat(const XSTRING &s)
 	ret = s;
 
 	// "/" -> \057, ";" -> \073
-	re.assign(_T("[/;]"));
-	if(std::regex_search(ret, re))
+	static const XREGEX respcch(_T("[/;]"));
+
+	if(std::regex_search(ret, respcch))
 	{
 		// "\"" -> "\\\"", "\\" -> "\\\\"
 		re.assign(_T("([\\\"\\\\])"));
