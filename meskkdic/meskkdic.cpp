@@ -8,7 +8,7 @@
 
 #include <Windows.h>
 
-#define VERSION		L"2.3.0"
+#define VERSION		L"2.4.0"
 
 #ifdef _UNICODE
 #define BUFSIZE 0x800
@@ -423,7 +423,7 @@ BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path)
 {
 	FILE *fp;
 	XSTRING key, empty;
-	int okuri = -1;
+	int okuri = 0; // default okuri-nasi
 	int rl;
 	SKKDICCANDIDATES sc;
 	SKKDICOKURIBLOCKS so;
