@@ -8,20 +8,20 @@
 
 #include <Windows.h>
 
-#define VERSION		L"2.4.0"
+#define VERSION		L"2.5.0"
 
 #ifdef _UNICODE
-#define BUFSIZE 0x800
-LPCWSTR modeR = L"r,ccs=UTF-16LE";
-LPCWSTR modeW = L"w,ccs=UTF-16LE";
+#define BUFSIZE 0x100
+LPCWSTR modeR = L"rt,ccs=UTF-16LE";
+LPCWSTR modeW = L"wt,ccs=UTF-16LE";
 LPCWSTR EntriesAri = L";; okuri-ari entries.\n";
 LPCWSTR EntriesNasi = L";; okuri-nasi entries.\n";
 #define XSTRING std::wstring
 #define XREGEX std::wregex
 #define XSMATCH std::wsmatch
 #else
-#define BUFSIZE 0x1000
-LPCWSTR modeR = L"rb";
+#define BUFSIZE 0x200
+LPCWSTR modeR = L"rt";
 LPCWSTR modeW = L"wb";
 LPCSTR EntriesAri = ";; okuri-ari entries.\n";
 LPCSTR EntriesNasi = ";; okuri-nasi entries.\n";
@@ -602,36 +602,29 @@ BOOL SaveSKKDic(LPCWSTR path)
 int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o)
 {
 	TCHAR buf[BUFSIZE];
-	size_t is, ie;
-	void *rp;
-	XSTRING sbuf, s, fmt;
+	XSTRING sbuf;
 
 	c.clear();
 	o.clear();
 
-	while((rp = _fgetts(buf, _countof(buf), fp)) != nullptr)
+	while(_fgetts(buf, _countof(buf), fp) != nullptr)
 	{
 		sbuf += buf;
 
 		if(!sbuf.empty() && sbuf.back() == _T('\n'))
 		{
-			is = sbuf.find(_T("\r\n"));
-			if(is != std::wstring::npos)
-			{
-				sbuf = sbuf.substr(0, is) + _T("\n");
-			}
 			break;
 		}
 	}
 
-	if(rp == nullptr)
+	if (ferror(fp) != 0)
 	{
 		return -1;
 	}
 
 	if(sbuf.empty())
 	{
-		return 1;
+		return -1;
 	}
 
 	if(sbuf.compare(EntriesAri) == 0)
@@ -650,10 +643,11 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		return 1;
 	}
 
-	s = sbuf;
+	XSTRING s = sbuf;
+
+	static const XSTRING  fmt(_T(""));
 
 	static const XREGEX rectrl(_T("[\\x00-\\x19]"));
-	fmt.assign(_T(""));
 	s = std::regex_replace(s, rectrl, fmt);
 
 	if(okuri == 1)
@@ -665,17 +659,16 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 
 		//送りブロックを除去
 		static const XREGEX reblock(_T("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/"));
-		fmt.assign(_T(""));
 		s = std::regex_replace(s, reblock, fmt);
 	}
 
-	is = s.find(_T("\x20/"));
+	size_t is = s.find(_T("\x20/"));
 	if(is == std::wstring::npos)
 	{
 		return 1;
 	}
 
-	ie = s.find_last_not_of(_T('\x20'), is);
+	size_t ie = s.find_last_not_of(_T('\x20'), is);
 	if(ie == std::wstring::npos)
 	{
 		return 1;
