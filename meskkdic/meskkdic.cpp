@@ -80,7 +80,7 @@ void AddDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate, const
 void DelDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate);
 void AddKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder);
 void DelKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder);
-void AddOkuriBlock(const std::wstring &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so);
+void AddOkuriBlock(const XSTRING &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so);
 BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path);
 void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &sc, const SKKDICOKURIBLOCKS &so);
 BOOL SaveSKKDic(LPCWSTR path);
