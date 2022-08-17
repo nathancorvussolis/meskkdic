@@ -93,8 +93,7 @@ XSTRING MakeConcat(const XSTRING &s);
 int wmain(int argc, wchar_t* argv[])
 {
 	WCHAR op;
-	int i, oi;
-	SKKDIC entries_a, entries_n;
+	int oi = 1;
 
 	_tsetlocale(LC_ALL, _T(""));
 
@@ -107,14 +106,10 @@ int wmain(int argc, wchar_t* argv[])
 	if(wcscmp(argv[1], L"-O") == 0)
 	{
 		privatedic = TRUE;
-		oi = 2;
-	}
-	else
-	{
-		oi = 1;
+		++oi;
 	}
 
-	for(i = oi; i < argc - 1; i += 2)
+	for(int i = oi; i < argc - 1; i += 2)
 	{
 		if(i != oi)
 		{
@@ -126,7 +121,7 @@ int wmain(int argc, wchar_t* argv[])
 		}
 	}
 
-	for(i = oi; i < argc - 1; i += 2)
+	for(int i = oi; i < argc - 1; i += 2)
 	{
 		if(i == oi)
 		{
