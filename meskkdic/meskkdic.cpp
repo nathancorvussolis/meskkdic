@@ -97,16 +97,21 @@ int wmain(int argc, wchar_t* argv[])
 		return -1;
 	}
 
-	if (wcscmp(argv[1], L"-W") == 0)
+	for (int i = 1; i <= 2; i++)
 	{
-		widechar = TRUE;
-		++oi;
-	}
-
-	if (wcscmp(argv[2], L"-O") == 0)
-	{
-		privatedic = TRUE;
-		++oi;
+		if ((argv[i][0] == L'-' || argv[i][0] == L'/') && argv[i][1] != L'\0')
+		{
+			if (towupper(argv[i][1]) == L'W')
+			{
+				widechar = TRUE;
+				++oi;
+			}
+			else if (towupper(argv[i][1]) == L'O')
+			{
+				privatedic = TRUE;
+				++oi;
+			}
+		}
 	}
 
 	for(int i = oi; i < argc - 1; i += 2)
