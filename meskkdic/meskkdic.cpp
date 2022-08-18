@@ -1,59 +1,50 @@
 ﻿
-#include <tchar.h>
-
+#include <Windows.h>
+#include <clocale>
 #include <string>
 #include <vector>
 #include <map>
 #include <regex>
 
-#include <Windows.h>
-
 #define VERSION		L"2.5.0"
 
-#ifdef _UNICODE
-#define BUFSIZE 0x100
-LPCWSTR modeR = L"rt,ccs=UTF-16LE";
-LPCWSTR modeW = L"wt,ccs=UTF-16LE";
-LPCWSTR EntriesAri = L";; okuri-ari entries.\n";
-LPCWSTR EntriesNasi = L";; okuri-nasi entries.\n";
-#define XSTRING std::wstring
-#define XREGEX std::wregex
-#define XSMATCH std::wsmatch
-#else
-#define BUFSIZE 0x200
 LPCWSTR modeR = L"rt";
 LPCWSTR modeW = L"wb";
+LPCWSTR modeRL = L"rt,ccs=UTF-16LE";
+LPCWSTR modeWL = L"wt,ccs=UTF-16LE";
+
+#define BUFSIZE 0x400
+#define WBUFSIZE 0x100
+
 LPCSTR EntriesAri = ";; okuri-ari entries.\n";
 LPCSTR EntriesNasi = ";; okuri-nasi entries.\n";
-#define XSTRING std::string
-#define XREGEX std::regex
-#define XSMATCH std::smatch
-#endif
+LPCWSTR EntriesAriL = L";; okuri-ari entries.\n";
+LPCWSTR EntriesNasiL = L";; okuri-nasi entries.\n";
 
 //変換済み検索結果
-typedef std::pair< XSTRING, XSTRING > CANDIDATEBASE; //候補、注釈
+typedef std::pair< std::string, std::string > CANDIDATEBASE; //候補、注釈
 typedef std::pair< CANDIDATEBASE, CANDIDATEBASE > CANDIDATE; //表示用、辞書登録用
 typedef std::vector< CANDIDATE > CANDIDATES;
 
 //検索結果
-typedef std::pair< XSTRING, XSTRING > SKKDICCANDIDATE; //候補、注釈
+typedef std::pair< std::string, std::string > SKKDICCANDIDATE; //候補、注釈
 typedef std::vector< SKKDICCANDIDATE > SKKDICCANDIDATES;
 
 //送りありエントリのブロック
-typedef std::pair< XSTRING, SKKDICCANDIDATES > SKKDICOKURIBLOCK; //送り仮名、候補
+typedef std::pair< std::string, SKKDICCANDIDATES > SKKDICOKURIBLOCK; //送り仮名、候補
 typedef std::vector< SKKDICOKURIBLOCK > SKKDICOKURIBLOCKS;
 struct OKURIBLOCKS { //avoid C4503
 	SKKDICOKURIBLOCKS o;
 };
-typedef std::pair< XSTRING, OKURIBLOCKS > USEROKURIENTRY; //見出し語、送りブロック
-typedef std::map< XSTRING, OKURIBLOCKS > USEROKURI;
+typedef std::pair< std::string, OKURIBLOCKS > USEROKURIENTRY; //見出し語、送りブロック
+typedef std::map< std::string, OKURIBLOCKS > USEROKURI;
 
 //見出し語順序
-typedef std::vector< XSTRING > KEYORDER;
+typedef std::vector< std::string > KEYORDER;
 
 //辞書
-typedef std::pair< XSTRING, SKKDICCANDIDATES > SKKDICENTRY; //見出し語、候補
-typedef std::map< XSTRING, SKKDICCANDIDATES > SKKDIC;
+typedef std::pair< std::string, SKKDICCANDIDATES > SKKDICENTRY; //見出し語、候補
+typedef std::map< std::string, SKKDICCANDIDATES > SKKDIC;
 
 #define FORWARD_ITERATION_I(iterator, container) \
 	for(auto (iterator) = (container).begin(); (iterator) != (container).end(); ++(iterator))
@@ -67,7 +58,8 @@ typedef std::map< XSTRING, SKKDICCANDIDATES > SKKDIC;
 CONST WCHAR plus = L'+';
 CONST WCHAR minus = L'-';
 
-BOOL privatedic = FALSE;
+BOOL widechar = FALSE;		// UTF-16LE
+BOOL privatedic = FALSE;	// 個人辞書、送りありエントリの角括弧のブロックを保持。
 
 SKKDIC skkdic_a;			//辞書 送りありエントリ
 SKKDIC skkdic_n;			//辞書 送りなしエントリ
@@ -76,26 +68,28 @@ KEYORDER complements;		//送りなしエントリ 見出し語順序
 KEYORDER accompaniments;	//送りありエントリ 見出し語順序
 
 void usage();
-void AddDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate, const XSTRING &annotation);
-void DelDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate);
-void AddKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder);
-void DelKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder);
-void AddOkuriBlock(const XSTRING &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so);
+void AddDic(int okuri, const std::string &searchkey, const std::string &candidate, const std::string &annotation);
+void DelDic(int okuri, const std::string &searchkey, const std::string &candidate);
+void AddKeyOrder(const std::string &searchkey, KEYORDER &keyorder);
+void DelKeyOrder(const std::string &searchkey, KEYORDER &keyorder);
+void AddOkuriBlock(const std::string &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so);
 BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path);
-void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &sc, const SKKDICOKURIBLOCKS &so);
+std::wstring cesu8_string_to_wstring(const std::string &s);
+void WriteSKKDicEntry(FILE *fp, const std::string &key, const SKKDICCANDIDATES &sc, const SKKDICOKURIBLOCKS &so);
 BOOL SaveSKKDic(LPCWSTR path);
-int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o);
-void ParseSKKDicCandiate(const XSTRING &s, SKKDICCANDIDATES &c);
-void ParseSKKDicOkuriBlock(const XSTRING &s, SKKDICOKURIBLOCKS &o);
-XSTRING ParseConcat(const XSTRING &s);
-XSTRING MakeConcat(const XSTRING &s);
+char *fgets8(char *buffer, int count, FILE *fp);
+int ReadSKKDicLine(FILE *fp, int &okuri, std::string &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o);
+void ParseSKKDicCandiate(const std::string &s, SKKDICCANDIDATES &c);
+void ParseSKKDicOkuriBlock(const std::string &s, SKKDICOKURIBLOCKS &o);
+std::string ParseConcat(const std::string &s);
+std::string MakeConcat(const std::string &s);
 
 int wmain(int argc, wchar_t* argv[])
 {
 	WCHAR op;
 	int oi = 1;
 
-	_tsetlocale(LC_ALL, _T(""));
+	_wsetlocale(LC_ALL, L"");
 
 	if(argc < 3)
 	{
@@ -103,7 +97,13 @@ int wmain(int argc, wchar_t* argv[])
 		return -1;
 	}
 
-	if(wcscmp(argv[1], L"-O") == 0)
+	if (wcscmp(argv[1], L"-W") == 0)
+	{
+		widechar = TRUE;
+		++oi;
+	}
+
+	if (wcscmp(argv[2], L"-O") == 0)
 	{
 		privatedic = TRUE;
 		++oi;
@@ -149,14 +149,14 @@ int wmain(int argc, wchar_t* argv[])
 void usage()
 {
 	fwprintf(stderr, L"\nmeskkdic " VERSION L"\n"
-		L"usage : meskkdic [-O] <input file 1> [[+-] <input file 2> ...] <output file>\n");
+		L"usage : meskkdic [-W] [-O] <input file 1> [[+-] <input file 2> ...] <output file>\n");
 }
 
-void AddDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate, const XSTRING &annotation)
+void AddDic(int okuri, const std::string &searchkey, const std::string &candidate, const std::string &annotation)
 {
-	LPCTSTR seps = _T(",");
-	XSTRING annotation_esc, annotation_seps;
-	XREGEX re;
+	LPCSTR seps = ",";
+	std::string annotation_esc, annotation_seps;
+	std::regex re;
 	SKKDICENTRY userdicentry;
 	USEROKURIENTRY userokurientry;
 	SKKDICCANDIDATES okurics;
@@ -188,7 +188,7 @@ void AddDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate, const
 			{
 				exist = true;
 				annotation_esc = ParseConcat(sc_itr->second);
-				if(annotation_esc.find(annotation_seps) == std::wstring::npos)
+				if(annotation_esc.find(annotation_seps) == std::string::npos)
 				{
 					if(annotation_esc.empty())
 					{
@@ -215,7 +215,7 @@ void AddDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate, const
 	}
 }
 
-void DelDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate)
+void DelDic(int okuri, const std::string &searchkey, const std::string &candidate)
 {
 	auto &skkdic = (okuri == 0 ? skkdic_n : skkdic_a);
 	auto skkdic_itr = skkdic.find(searchkey);
@@ -277,12 +277,12 @@ void DelDic(int okuri, const XSTRING &searchkey, const XSTRING &candidate)
 	}
 }
 
-void AddKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder)
+void AddKeyOrder(const std::string &searchkey, KEYORDER &keyorder)
 {
 	keyorder.push_back(searchkey);
 }
 
-void DelKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder)
+void DelKeyOrder(const std::string &searchkey, KEYORDER &keyorder)
 {
 	if(!keyorder.empty())
 	{
@@ -297,7 +297,7 @@ void DelKeyOrder(const XSTRING &searchkey, KEYORDER &keyorder)
 	}
 }
 
-void AddOkuriBlock(const XSTRING &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so)
+void AddOkuriBlock(const std::string &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBLOCKS &so)
 {
 	USEROKURIENTRY userokurientry;
 
@@ -417,28 +417,29 @@ void AddOkuriBlock(const XSTRING &key, const SKKDICCANDIDATES &sc, SKKDICOKURIBL
 BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path)
 {
 	FILE *fp;
-	XSTRING key, empty;
+	std::string key, empty;
 	int okuri = 0; // default okuri-nasi
 	int rl;
 	SKKDICCANDIDATES sc;
 	SKKDICOKURIBLOCKS so;
 
-	_wfopen_s(&fp, path, modeR);
+	_wfopen_s(&fp, path, (widechar ? modeRL : modeR));
 	if(fp == nullptr)
 	{
 		fwprintf(stderr, L"cannot open file : %s\n", path);
 		return FALSE;
 	}
 
-#ifndef _UNICODE
-	// skip BOM
-	UCHAR bom[3] = {0,0,0};
-	fread(&bom, sizeof(bom), 1, fp);
-	if(bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF)
+	if (widechar == FALSE)
 	{
-		fseek(fp, 0, SEEK_SET);
+		// skip BOM
+		UCHAR bom[3] = { 0,0,0 };
+		fread(&bom, sizeof(bom), 1, fp);
+		if (bom[0] != 0xEF || bom[1] != 0xBB || bom[2] != 0xBF)
+		{
+			fseek(fp, 0, SEEK_SET);
+		}
 	}
-#endif
 
 	while(true)
 	{
@@ -488,37 +489,90 @@ BOOL LoadSKKDic(CONST WCHAR op, LPCWSTR path)
 	return TRUE;
 }
 
-void WriteSKKDicEntry(FILE *fp, const XSTRING &key, const SKKDICCANDIDATES &sc, const SKKDICOKURIBLOCKS &so)
+std::wstring cesu8_string_to_wstring(const std::string &s)
 {
-	XSTRING line, annotation_esc;
+	std::wstring ws;
+	size_t length = s.length();
 
-	line = key + _T(" /");
+	for (size_t i = 0; i < length; i++)
+	{
+		UCHAR u0 = (UCHAR)s[i];
+
+		// CESU-8
+		if (u0 <= 0x7F)
+		{
+			WCHAR w = (WCHAR)(u0 & 0x7F);
+			ws.push_back(w);
+		}
+		else if (u0 >= 0xC2 && u0 <= 0xDF)
+		{
+			if (i + 1 >= length) break;
+
+			UCHAR u1 = (UCHAR)s[i + 1];
+
+			WCHAR w =
+				((WCHAR)(u0 & 0x1F) << 6) |
+				((WCHAR)(u1 & 0x3F));
+			ws.push_back(w);
+			i += 1;
+		}
+		else if (u0 >= 0xE0 && u0 <= 0xEF)
+		{
+			if (i + 2 >= length) break;
+
+			UCHAR u1 = (UCHAR)s[i + 1];
+			UCHAR u2 = (UCHAR)s[i + 2];
+
+			WCHAR w =
+				((WCHAR)(u0 & 0x0F) << 12) |
+				((WCHAR)(u1 & 0x3F) << 6) |
+				((WCHAR)(u2 & 0x3F));
+			ws.push_back(w);
+			i += 2;
+		}
+	}
+
+	return ws;
+}
+
+void WriteSKKDicEntry(FILE *fp, const std::string &key, const SKKDICCANDIDATES &sc, const SKKDICOKURIBLOCKS &so)
+{
+	std::string line, annotation_esc;
+
+	line = key + " /";
 	FORWARD_ITERATION_I(sc_itr, sc)
 	{
 		line += sc_itr->first;
 		if(sc_itr->second.size() > 2)
 		{
 			annotation_esc = ParseConcat(sc_itr->second);
-			line += _T(";") + MakeConcat(annotation_esc.substr(1, annotation_esc.size() - 2));
+			line += ";" + MakeConcat(annotation_esc.substr(1, annotation_esc.size() - 2));
 		}
-		line += _T("/");
+		line += "/";
 	}
 
 	if(privatedic)
 	{
 		FORWARD_ITERATION_I(so_itr, so)
 		{
-			line += _T("[") + so_itr->first + _T("/");
+			line += "[" + so_itr->first + "/";
 			FORWARD_ITERATION_I(sc_itr, so_itr->second)
 			{
-				line += sc_itr->first + _T("/");
+				line += sc_itr->first + "/";
 			}
-			line += _T("]/");
+			line += "]/";
 		}
 
 	}
 	
-	_ftprintf(fp, _T("%s\n"), line.c_str());
+	if (widechar)
+	{
+		fwprintf(fp, L"%s\n", cesu8_string_to_wstring(line).c_str());
+	}
+	else
+	{
+		fprintf(fp, "%s\n", line.c_str());
+	}
 }
 
 BOOL SaveSKKDic(LPCWSTR path)
@@ -526,7 +580,7 @@ BOOL SaveSKKDic(LPCWSTR path)
 	FILE *fp;
 	SKKDICOKURIBLOCKS so;
 
-	_wfopen_s(&fp, path, modeW);
+	_wfopen_s(&fp, path, (widechar ? modeWL : modeW));
 	if(fp == nullptr)
 	{
 		fwprintf(stderr, L"cannot open file : %s\n", path);
@@ -534,7 +588,14 @@ BOOL SaveSKKDic(LPCWSTR path)
 	}
 
 	//送りありエントリ
-	_ftprintf(fp, _T("%s"), EntriesAri);
+	if (widechar)
+	{
+		fwprintf(fp, L"%s", EntriesAriL);
+	}
+	else
+	{
+		fprintf(fp, "%s", EntriesAri);
+	}
 
 	if(privatedic)
 	{
@@ -566,7 +627,14 @@ BOOL SaveSKKDic(LPCWSTR path)
 	so.clear();
 
 	//送りなしエントリ
-	_ftprintf(fp, _T("%s"), EntriesNasi);
+	if (widechar)
+	{
+		fwprintf(fp, L"%s", EntriesNasiL);
+	}
+	else
+	{
+		fprintf(fp, "%s", EntriesNasi);
+	}
 
 	if(privatedic)
 	{
@@ -594,19 +662,71 @@ BOOL SaveSKKDic(LPCWSTR path)
 	return TRUE;
 }
 
-int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o)
+char *fgets8(char *buffer, int count, FILE *fp)
 {
-	TCHAR buf[BUFSIZE];
-	XSTRING sbuf;
+	if (widechar)
+	{
+		WCHAR wbuf[WBUFSIZE] = {};
+		char *ret = nullptr;
+		int n = 0;
+		if (fgetws(wbuf, WBUFSIZE, fp) != nullptr)
+		{
+			for (int i = 0; i < WBUFSIZE; i++)
+			{
+				// CESU-8
+				if (wbuf[i] <= L'\u007F')
+				{
+					if (n + 1 >= count) break;
+
+					buffer[n++] = (UCHAR)wbuf[i] & 0x7F;
+
+					if (wbuf[i] == L'\0')
+					{
+						ret = buffer;
+						break;
+					}
+				}
+				else if (wbuf[i] <= L'\u07FF')
+				{
+					if (n + 2 >= count) break;
+
+					buffer[n++] = (UCHAR)0xC0 | (UCHAR)((wbuf[i] >> 6) & 0x1F);
+					buffer[n++] = (UCHAR)0x80 | (UCHAR)(wbuf[i] & 0x3F);
+				}
+				else
+				{
+					if (n + 3 >= count) break;
+
+					buffer[n++] = (UCHAR)0xE0 | (UCHAR)((wbuf[i] >> 12) & 0x0F);
+					buffer[n++] = (UCHAR)0x80 | (UCHAR)((wbuf[i] >> 6) & 0x3F);
+					buffer[n++] = (UCHAR)0x80 | (UCHAR)(wbuf[i] & 0x3F);
+				}
+			}
+
+			return ret;
+		}
+	}
+	else
+	{
+		return fgets(buffer, count, fp);
+	}
+
+	return nullptr;
+}
+
+int ReadSKKDicLine(FILE *fp, int &okuri, std::string &key, SKKDICCANDIDATES &c, SKKDICOKURIBLOCKS &o)
+{
+	CHAR buf[BUFSIZE] = {};
+	std::string sbuf;
 
 	c.clear();
 	o.clear();
 
-	while(_fgetts(buf, _countof(buf), fp) != nullptr)
+	while(fgets8(buf, _countof(buf), fp) != nullptr)
 	{
 		sbuf += buf;
 
-		if(!sbuf.empty() && sbuf.back() == _T('\n'))
+		if(!sbuf.empty() && sbuf.back() == '\n')
 		{
 			break;
 		}
@@ -638,11 +758,11 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		return 1;
 	}
 
-	XSTRING s = sbuf;
+	std::string s = sbuf;
 
-	static const XSTRING  fmt(_T(""));
+	static const std::string  fmt("");
 
-	static const XREGEX rectrl(_T("[\\x00-\\x19]"));
+	static const std::regex rectrl("[\\x00-\\x19]");
 	s = std::regex_replace(s, rectrl, fmt);
 
 	if(okuri == 1)
@@ -653,23 +773,23 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 		}
 
 		//送りブロックを除去
-		static const XREGEX reblock(_T("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/"));
+		static const std::regex reblock("\\[[^\\[\\]]+?/[^\\[\\]]+?/\\]/");
 		s = std::regex_replace(s, reblock, fmt);
 	}
 
-	size_t is = s.find(_T("\x20/"));
-	if(is == std::wstring::npos)
+	size_t is = s.find("\x20/");
+	if(is == std::string::npos)
 	{
 		return 1;
 	}
 
-	size_t ie = s.find_last_not_of(_T('\x20'), is);
-	if(ie == std::wstring::npos)
+	size_t ie = s.find_last_not_of('\x20', is);
+	if(ie == std::string::npos)
 	{
 		return 1;
 	}
 
-	if(s.find_last_of(_T('\x20'), ie) != std::wstring::npos)
+	if(s.find_last_of('\x20', ie) != std::string::npos)
 	{
 		return 1;
 	}
@@ -683,17 +803,17 @@ int ReadSKKDicLine(FILE *fp, int &okuri, XSTRING &key, SKKDICCANDIDATES &c, SKKD
 	return 0;
 }
 
-void ParseSKKDicCandiate(const XSTRING &s, SKKDICCANDIDATES &c)
+void ParseSKKDicCandiate(const std::string &s, SKKDICCANDIDATES &c)
 {
 	size_t i, is, ie, ia;
-	XSTRING candidate, annotation;
+	std::string candidate, annotation;
 
 	i = 0;
 	while(i < s.size())
 	{
-		is = s.find_first_of(_T('/'), i);
-		ie = s.find_first_of(_T('/'), is + 1);
-		if(ie == XSTRING::npos)
+		is = s.find_first_of('/', i);
+		ie = s.find_first_of('/', is + 1);
+		if(ie == std::string::npos)
 		{
 			break;
 		}
@@ -701,9 +821,9 @@ void ParseSKKDicCandiate(const XSTRING &s, SKKDICCANDIDATES &c)
 		candidate = s.substr(i + 1, ie - is - 1);
 		i = ie;
 
-		ia = candidate.find_first_of(_T(';'));
+		ia = candidate.find_first_of(';');
 
-		if(ia == XSTRING::npos)
+		if(ia == std::string::npos)
 		{
 			annotation.clear();
 		}
@@ -720,23 +840,23 @@ void ParseSKKDicCandiate(const XSTRING &s, SKKDICCANDIDATES &c)
 	}
 }
 
-void ParseSKKDicOkuriBlock(const XSTRING &s, SKKDICOKURIBLOCKS &o)
+void ParseSKKDicOkuriBlock(const std::string &s, SKKDICOKURIBLOCKS &o)
 {
-	XSTRING so, okurik, okuric, fmt;
-	XSMATCH m;
+	std::string so, okurik, okuric, fmt;
+	std::smatch m;
 	SKKDICCANDIDATES okurics;
 
 	so = s;
 
-	static const XREGEX reblock(_T("\\[([^\\[\\]]+?)(/[^\\[\\]]+?/)\\]/"));
+	static const std::regex reblock("\\[([^\\[\\]]+?)(/[^\\[\\]]+?/)\\]/");
 
 	while(std::regex_search(so, m, reblock))
 	{
 		okurics.clear();
 
-		fmt.assign(_T("$1"));
+		fmt.assign("$1");
 		okurik = std::regex_replace(m.str(), reblock, fmt);
-		fmt.assign(_T("$2"));
+		fmt.assign("$2");
 		okuric = std::regex_replace(m.str(), reblock, fmt);
 
 		ParseSKKDicCandiate(okuric, okurics);
@@ -749,106 +869,102 @@ void ParseSKKDicOkuriBlock(const XSTRING &s, SKKDICOKURIBLOCKS &o)
 	}
 }
 
-XSTRING ParseConcat(const XSTRING &s)
+std::string ParseConcat(const std::string &s)
 {
-	XSTRING ret, fmt, numstr, numtmpstr;
-	XREGEX re;
-	XSMATCH res;
+	std::string ret, fmt, numstr, numtmpstr;
+	std::regex re;
+	std::smatch res;
 	ULONG u;
-#ifdef _UNICODE
-	LPCTSTR bsrep = _T("\uf05c");
-#else
-	LPCTSTR bsrep = _T("\xff");
-#endif
+	LPCSTR bsrep = "\xff";
 	ret = s;
 
-	static const XREGEX reconcat(_T("^\\(\\s*concat\\s+\"(.+)\"\\s*\\)$"));
+	static const std::regex reconcat("^\\(\\s*concat\\s+\"(.+)\"\\s*\\)$");
 
 	if(std::regex_search(ret, reconcat))
 	{
-		fmt.assign(_T("$1"));
+		fmt.assign("$1");
 		ret = std::regex_replace(ret, reconcat, fmt);
 
-		re.assign(_T("\"\\s+\""));
-		fmt.assign(_T(""));
+		re.assign("\"\\s+\"");
+		fmt.assign("");
 		ret = std::regex_replace(ret, re, fmt);
 
 		//バックスラッシュ
-		re.assign(_T("\\\\\\\\"));
+		re.assign("\\\\\\\\");
 		fmt.assign(bsrep);
 		ret = std::regex_replace(ret, re, fmt);
 
 		//二重引用符
-		re.assign(_T("\\\\\\\""));
-		fmt.assign(_T("\\\""));
+		re.assign("\\\\\\\"");
+		fmt.assign("\\\"");
 		ret = std::regex_replace(ret, re, fmt);
 
 		//空白文字
-		re.assign(_T("\\\\s"));
-		fmt.assign(_T("\x20"));
+		re.assign("\\\\s");
+		fmt.assign("\x20");
 		ret = std::regex_replace(ret, re, fmt);
 
 		//制御文字など
-		re.assign(_T("\\\\[abtnvfred ]"));
-		fmt.assign(_T(""));
+		re.assign("\\\\[abtnvfred ]");
+		fmt.assign("");
 		ret = std::regex_replace(ret, re, fmt);
 
 		//8進数表記の文字
-		re.assign(_T("\\\\[0-3][0-7]{2}"));
+		re.assign("\\\\[0-3][0-7]{2}");
 		while(std::regex_search(ret, res, re))
 		{
 			numstr += res.prefix();
 			numtmpstr = res.str();
 			numtmpstr[0] = L'0';
-			u = _tcstoul(numtmpstr.c_str(), nullptr, 0);
-			if(u >= _T('\x20') && u <= _T('\x7E'))
+			u = strtoul(numtmpstr.c_str(), nullptr, 0);
+			if(u >= '\x20' && u <= '\x7E')
 			{
-				numstr.append(1, (TCHAR)u);
+				numstr.append(1, (CHAR)u);
 			}
 			ret = res.suffix().str();
 		}
 		ret = numstr + ret;
 
 		//意味なしエスケープ
-		re.assign(_T("\\\\"));
-		fmt.assign(_T(""));
+		re.assign("\\\\");
+		fmt.assign("");
 		ret = std::regex_replace(ret, re, fmt);
 
 		//バックスラッシュ
 		re.assign(bsrep);
-		fmt.assign(_T("\\"));
+		fmt.assign("\\");
 		ret = std::regex_replace(ret, re, fmt);
 	}
 
 	return ret;
 }
 
-XSTRING MakeConcat(const XSTRING &s)
+std::string MakeConcat(const std::string &s)
 {
-	XSTRING ret, fmt;
-	XREGEX re;
+	std::string ret, fmt;
+	std::regex re;
 
 	ret = s;
 
 	// "/" -> \057, ";" -> \073
-	static const XREGEX respcch(_T("[/;]"));
+	static const std::regex respcch("[/;]");
 
 	if(std::regex_search(ret, respcch))
 	{
 		// "\"" -> "\\\"", "\\" -> "\\\\"
-		re.assign(_T("([\\\"\\\\])"));
-		fmt.assign(_T("\\$1"));
+		re.assign("([\\\"\\\\])");
+		fmt.assign("\\$1");
 		ret = std::regex_replace(ret, re, fmt);
 
-		re.assign(_T("/"));
-		fmt.assign(_T("\\057"));
+		re.assign("/");
+		fmt.assign("\\057");
 		ret = std::regex_replace(ret, re, fmt);
 
-		re.assign(_T(";"));
-		fmt.assign(_T("\\073"));
+		re.assign(";");
+		fmt.assign("\\073");
 		ret = std::regex_replace(ret, re, fmt);
 
-		ret = _T("(concat \"") + ret + _T("\")");
+		ret = "(concat \"" + ret + "\")";
 	}
 
 	return ret;
