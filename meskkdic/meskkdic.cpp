@@ -678,7 +678,7 @@ char *fgets8(char *buffer, int count, FILE *fp)
 		{
 			for (int i = 0; i < WBUFSIZE; i++)
 			{
-				// CESU-8
+				// CESU-8 for sorting in UTF-16
 				if (wbuf[i] <= L'\u007F')
 				{
 					if (n + 1 >= count) break;
