@@ -569,7 +569,7 @@ void WriteSKKDicEntry(FILE *fp, const std::string &key, const SKKDICCANDIDATES &
 		}
 
 	}
-	
+
 	if (widechar)
 	{
 		fwprintf(fp, L"%s\n", cesu8_string_to_wstring(line).c_str());
