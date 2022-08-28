@@ -6,7 +6,7 @@
 #include <map>
 #include <regex>
 
-#define VERSION		L"2.5.0"
+#define VERSION		L"2.5.5"
 
 LPCWSTR modeR = L"rt";
 LPCWSTR modeW = L"wb";
@@ -153,8 +153,8 @@ int wmain(int argc, wchar_t* argv[])
 
 void usage()
 {
-	fwprintf(stderr, L"\nmeskkdic " VERSION L"\n"
-		L"usage : meskkdic [-W] [-O] <input file 1> [[+-] <input file 2> ...] <output file>\n");
+	fwprintf(stderr, L"\nmeskkdic %s\n\n", VERSION);
+	fwprintf(stderr, L"usage : meskkdic [-W] [-O] <input file 1> [[+-] <input file 2> ...] <output file>\n");
 }
 
 void AddDic(int okuri, const std::string &searchkey, const std::string &candidate, const std::string &annotation)
