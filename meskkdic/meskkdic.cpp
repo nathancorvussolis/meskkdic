@@ -33,11 +33,8 @@ typedef std::vector< SKKDICCANDIDATE > SKKDICCANDIDATES;
 //送りありエントリのブロック
 typedef std::pair< std::string, SKKDICCANDIDATES > SKKDICOKURIBLOCK; //送り仮名、候補
 typedef std::vector< SKKDICOKURIBLOCK > SKKDICOKURIBLOCKS;
-struct OKURIBLOCKS { //avoid C4503
-	SKKDICOKURIBLOCKS o;
-};
-typedef std::pair< std::string, OKURIBLOCKS > USEROKURIENTRY; //見出し語、送りブロック
-typedef std::map< std::string, OKURIBLOCKS > USEROKURI;
+typedef std::pair< std::string, SKKDICOKURIBLOCKS > USEROKURIENTRY; //見出し語、送りブロック
+typedef std::map< std::string, SKKDICOKURIBLOCKS > USEROKURI;
 
 //見出し語順序
 typedef std::vector< std::string > KEYORDER;
@@ -252,7 +249,7 @@ void DelDic(int okuri, const std::string &searchkey, const std::string &candidat
 		auto userokuri_itr = userokuri.find(searchkey);
 		if(userokuri_itr != userokuri.end())
 		{
-			FORWARD_ITERATION(so_itr, userokuri_itr->second.o)
+			FORWARD_ITERATION(so_itr, userokuri_itr->second)
 			{
 				FORWARD_ITERATION(sc_itr, so_itr->second)
 				{
@@ -267,14 +264,14 @@ void DelDic(int okuri, const std::string &searchkey, const std::string &candidat
 				}
 				if(so_itr->second.empty())
 				{
-					so_itr = userokuri_itr->second.o.erase(so_itr);
+					so_itr = userokuri_itr->second.erase(so_itr);
 				}
 				else
 				{
 					++so_itr;
 				}
 			}
-			if(userokuri_itr->second.o.empty())
+			if(userokuri_itr->second.empty())
 			{
 				userokuri.erase(userokuri_itr);
 			}
@@ -378,7 +375,7 @@ void AddOkuriBlock(const std::string &key, const SKKDICCANDIDATES &sc, SKKDICOKU
 		if(userokuri_itr == userokuri.end())
 		{
 			userokurientry.first = key;
-			userokurientry.second.o = so;
+			userokurientry.second = so;
 			userokuri.insert(userokurientry);
 		}
 		else
@@ -386,7 +383,7 @@ void AddOkuriBlock(const std::string &key, const SKKDICCANDIDATES &sc, SKKDICOKU
 			FORWARD_ITERATION_I(so_itr, so)
 			{
 				bool exist_o = false;
-				FORWARD_ITERATION_I(o_itr, userokuri_itr->second.o)
+				FORWARD_ITERATION_I(o_itr, userokuri_itr->second)
 				{
 					if(o_itr->first == so_itr->first)
 					{
@@ -412,7 +409,7 @@ void AddOkuriBlock(const std::string &key, const SKKDICCANDIDATES &sc, SKKDICOKU
 				}
 				if(!exist_o)
 				{
-					userokuri_itr->second.o.push_back(*so_itr);
+					userokuri_itr->second.push_back(*so_itr);
 				}
 			}
 		}
@@ -613,7 +610,7 @@ BOOL SaveSKKDic(LPCWSTR path)
 				auto userokuri_itr = userokuri.find(*keyorder_itr);
 				if(userokuri_itr != userokuri.end())
 				{
-					so = userokuri_itr->second.o;
+					so = userokuri_itr->second;
 				}
 				WriteSKKDicEntry(fp, skkdic_itr->first, skkdic_itr->second, so);
 
